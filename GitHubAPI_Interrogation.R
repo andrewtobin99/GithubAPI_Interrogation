@@ -30,6 +30,7 @@ gitDF[gitDF$full_name == "jtleek/datasharing", "created_at"]
 
 
 ###########################################################
+##Interrogating Myself
 
 userData = fromJSON("https://api.github.com/users/andrewtobin99")
 
@@ -48,3 +49,85 @@ repos = fromJSON("https://api.github.com/users/andrewtobin99/repos")
 repos$name #Prints names of all my public repositories
 repos$created_at #Gives the date my repositories were made 
 repos$full_name #gives the full names of my repositories
+
+#######################################################################
+## Interrogating Lennart: trending user who makes Gatsby Themes
+
+LennartData = GET("https://api.github.com/users/LekoArts/followers?per_page=100;", github_token)
+stop_for_status(LennartData)
+extract = content(LennartData)
+
+githubDB = jsonlite::fromJSON(jsonlite::toJSON(extract))
+githubDB$login
+
+
+id = githubDB$login
+user_ids = c(id)
+
+## Generates Dataframe of users data
+users = c()
+usersDB = data.frame(
+  username = integer(),
+  following = integer(),
+  followers = integer(),
+  repos = integer(),
+  dateCreated = integer()
+)
+
+for(i in 1:length(user_ids))
+{
+  
+  followingURL = paste("https://api.github.com/users/", user_ids[i], "/following", sep = "")
+  followingRequest = GET(followingURL, gtoken)
+  followingContent = content(followingRequest)
+  
+  #Checks if the user following Lennart has followers
+  #Skips over them if there is no follower as they may be bots
+  if(length(followingContent) == 0)
+  {
+    next
+  }
+  
+  followingDF = jsonlite::fromJSON(jsonlite::toJSON(followingContent))
+  followingLogin = followingDF$login
+  
+  #Loops through github users who follow Lennarts
+  for (j in 1:length(followingLogin))
+  {
+    # Ensures there's no duplicates
+    if (is.element(followingLogin[j], users) == FALSE)
+    {
+      #Adds the user to the list
+      users[length(users) + 1] = followingLogin[j]
+      
+      #Collects each users data
+      followingUrl2 = paste("https://api.github.com/users/", followingLogin[j], sep = "")
+      following2 = GET(followingUrl2, gtoken)
+      followingContent2 = content(following2)
+      followingDF2 = jsonlite::fromJSON(jsonlite::toJSON(followingContent2))
+      
+      #Stores number of other github accounts the user is following
+      numberFollowing = followingDF2$following
+      
+      # Stores number of other github accounts following the user 
+      numberOfFollowers = followingDF2$followers
+      
+      #Count of the number of repositories each user has
+      numberOfRepos = followingDF2$public_repos
+      
+      #Stores the year each user joined github
+      yearJoined = substr(followingDF2$created_at, start = 1, stop = 4)
+      
+      #Appends users data to a new row in the DF
+      usersDB[nrow(usersDB) + 1, ] = c(followingLogin[j], followingNumber, followersNumber, reposNumber, yearCreated)
+      
+    }
+    next
+  }
+  #100 user cutoff
+  if(length(users) > 100)
+  {
+    break
+  }
+  next
+}
