@@ -4,6 +4,9 @@ library(jsonlite)
 library(httpuv)
 ##install.packages("httr")
 library(httr)
+##install.packages("plotly")
+library(plotly)
+require(devtools)
 
 oauth_endpoints("github")
 
@@ -119,7 +122,7 @@ for(i in 1:length(user_ids))
       yearJoined = substr(followingDF2$created_at, start = 1, stop = 4)
       
       #Appends users data to a new row in the DF
-      usersDB[nrow(usersDB) + 1, ] = c(followingLogin[j], followingNumber, followersNumber, reposNumber, yearCreated)
+      usersDB[nrow(usersDB) + 1, ] = c(followingLogin[j], numberFollowing, numberOfFollowers, numberOfRepos, yearJoined)
       
     }
     next
@@ -131,3 +134,79 @@ for(i in 1:length(user_ids))
   }
   next
 }
+
+
+Sys.setenv("plotly_username"="tobina2")
+Sys.setenv("plotly_api_key"="8RmAUW8IH4SRZuBtM138")
+
+
+# number of repositories v number of followers coloured by year
+repoplot = plot_ly(data = usersDB, x = ~repos, y = ~followers, 
+                text = ~paste("Followers: ", followers, "<br>Repositories: ", 
+                              repos, "<br>Date Created:", dateCreated), color = ~dateCreated)
+
+repoplot
+#send to plotly
+api_create(plot1, filename = "Number of Repositories vs Number of Followers")
+
+#graphs number following vs number followers again coloured by year
+follPlot = plot_ly(data = usersDB, x = ~following, y = ~followers, text = ~paste("Followers: ", followers, "<br>Following: ", following), color = ~dateCreated, colors = "Set3")
+follPlot
+
+api_create(plot2, filename = "GitHub API - Number Following vs Number of Followers for 100 users")
+
+
+languages = c()
+##most common languages used by Lennart's followers
+
+for (i in 1:length(users))
+{
+  RepositoriesUrl = paste("https://api.github.com/users/", users[i], "/repos", sep = "")
+  Repositories = GET(RepositoriesUrl, gtoken)
+  RepositoriesContent = content(Repositories)
+  RepositoriesDF = jsonlite::fromJSON(jsonlite::toJSON(RepositoriesContent))
+  RepositoriesNames = RepositoriesDF$name
+  
+  #Loop through all the repositories of users
+  if(length(RepositoriesNames) < 10){
+    reps = length(RepositoriesNames)
+  }
+  else{
+    reps = 10
+  }
+  
+  for (j in 1: reps)
+  {
+    
+    #Saves all the repositories to a dataframe
+    RepositoriesUrl2 = paste("https://api.github.com/repos/", users[i], "/", RepositoriesNames[j], sep = "")
+    Repositories2 = GET(RepositoriesUrl2, gtoken)
+    RepositoriesContent2 = content(Repositories2)
+    RepositoriesDF2 = jsonlite::fromJSON(jsonlite::toJSON(RepositoriesContent2))
+    language = RepositoriesDF2$language
+    
+    #Checks for valid language
+    if (length(language) != 0 && language != "<NA>")
+    {
+      ##adds to language list
+      languages[length(languages)+1] = language
+    }
+    next
+  }
+  next
+}
+
+##Creates table of most popular languages
+allLanguages = sort(table(languages), increasing=TRUE)
+##Selects the top 20 languages
+top20Languages = allLanguages[(length(allLanguages)-19):length(allLanguages)]
+
+#converts to top 20 languages dataframe
+languageDF = as.data.frame(top20Languages)
+
+#Creates barchart of top 20 languages.
+langPlot = plot_ly(data = languageDF, x = languageDF$languages, y = languageDF$Freq, type = "bar")
+langPlot
+
+
+api_create(langPlot, filename = "Top 20 Most Used Languages")
